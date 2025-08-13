@@ -1,50 +1,48 @@
-from flask import Flask, request, render_template
+"""Flask web server for the Emotion Detection application."""
+
+from flask import Flask, request
 from EmotionDetection import emotion_detector
 
 app = Flask(__name__)
 
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-# Must be exactly /emotionDetector
-@app.route("/emotionDetector", methods=["GET", "POST"])
-def emotion_detector_route():
+@app.route("/emotionDetector", methods=["POST"])
+def detect_emotion():
     """
-    Accept text via JSON/form/query, call emotion_detector,
-    return the required formatted string; if blank/invalid -> friendly error.
-    """
-    text_to_analyze = None
+    Handle POST requests to the /emotionDetector endpoint.
 
-    # JSON: {"text": "..."}
+    Returns:
+        tuple[str, int]: A response message and HTTP status code.
+    """
+    # Extract text from JSON (preferred) or HTML form fallback
+    input_text = ""
     if request.is_json:
         data = request.get_json(silent=True) or {}
-        text_to_analyze = data.get("text")
+        input_text = (data.get("text") or "").strip()
+    else:
+        input_text = (request.form.get("textToAnalyze") or "").strip()
 
-    # Fallbacks: form/query
-    if not text_to_analyze:
-        text_to_analyze = (
-            request.form.get("textToAnalyze")
-            or request.args.get("textToAnalyze")
-            or request.form.get("text")
-            or request.args.get("text")
-        )
+    # Blank input handling (Task 7)
+    if not input_text:
+        return "Invalid text! Please try again!", 400
 
-    # Always call our function (it maps 400/invalid to all-None dict)
-    scores = emotion_detector(text_to_analyze)
+    # Call the emotion detection function
+    scores = emotion_detector(input_text)
 
-    # Error handling per Task 7
+    # If API mapped input to an invalid case, return friendly error
     if scores.get("dominant_emotion") is None:
         return "Invalid text! Please try again!", 400
 
-    msg = (
-        f"For the given statement, the system response is "
+    # Build the required formatted message
+    message = (
+        "For the given statement, the system response is "
         f"'anger': {scores['anger']}, 'disgust': {scores['disgust']}, "
         f"'fear': {scores['fear']}, 'joy': {scores['joy']} and "
         f"'sadness': {scores['sadness']}. The dominant emotion is "
         f"{scores['dominant_emotion']}."
     )
-    return msg, 200
+
+    return message, 200
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
